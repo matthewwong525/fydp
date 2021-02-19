@@ -10,6 +10,8 @@ import datetime
 import select
 import threading
 import pickle
+import csv
+from datetime import datetime
 
 HEADER_LENGTH = 10
 
@@ -38,6 +40,7 @@ sockets_list = [server_socket]
 
 # List of connected clients - socket as a key, user header and name as data
 clients = {}
+csv_files = {}
 input_stream = []
 print(f'Listening for connections on {IP}:{PORT}...')
 
@@ -55,9 +58,14 @@ def receive_message(client_socket):
 
         # Convert header to int value
         message_length = int(message_header.decode('utf-8').strip())
-
+        data = b""
+        while message_length > 0:
+            recv = client_socket.recv(message_length)
+            data += recv               
+            message_length -= len(recv)
+            
         # Return an object of message header and message data
-        return {'header': message_header, 'data': client_socket.recv(message_length)}
+        return {'header': message_header, 'data': data}
 
     except:
 
@@ -116,13 +124,17 @@ while True:
 
             # Also save username and username header
             clients[client_socket] = user
-
+            csv_files[client_socket] = open(f'{user["data"].decode("utf-8")}_data.csv', 'w+')
+            csv_writer = csv.writer(csv_files[client_socket])
+            csv_writer.writerow(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'gx', 'gy', 'gz', 'ax', 'ay', 'az', 'time'])
+            
             print('Accepted new connection from {}:{}, username: {}'.format(*client_address, user['data'].decode('utf-8')))
 
         # Else existing socket is sending a message
         else:
 
             # Receive message
+            curr_time = datetime.now().strftime("%m/%d/%Y, %H:%M:%S.%f")
             message = receive_message(notified_socket)
 
             # If False, client disconnected, cleanup
@@ -134,17 +146,24 @@ while True:
 
                 # Remove from our list of users
                 del clients[notified_socket]
+                
+                # Close csv file
+                csv_files[notified_socket].close()
+                del csv_files[notified_socket]
 
                 continue
 
             # Get user by notified socket, so we will know who sent the message
             user = clients[notified_socket]
-            
             data = pickle.loads(message['data'])
-            data['time'] = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
+            data['msg'].append(curr_time)
 
             # TODO: Append timestamp to sensor data here and potentially store it somewhere?
             print(f'Received message from {user["data"].decode("utf-8")}: {data}')
+            
+            # csv_writer
+            csv_writer = csv.writer(csv_files[notified_socket])
+            csv_writer.writerow(data['msg'])
 
 
     # It's not really necessary to have this, but will handle some socket exceptions just in case

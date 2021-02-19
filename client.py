@@ -37,7 +37,7 @@ while True:
         # Wait for user to input a message
         # TODO: change this to read sensor data
         message = input('Send Sensor Data Here:')
-        data = {'msg': message}
+        data = {'msg': message }
         
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
         data = pickle.dumps(data)
