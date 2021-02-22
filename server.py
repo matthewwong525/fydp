@@ -126,7 +126,7 @@ while True:
             clients[client_socket] = user
             csv_files[client_socket] = open(f'{user["data"].decode("utf-8")}_data.csv', 'w+')
             csv_writer = csv.writer(csv_files[client_socket])
-            csv_writer.writerow(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'gx', 'gy', 'gz', 'ax', 'ay', 'az', 'time'])
+            csv_writer.writerow(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'gx', 'gy', 'gz', 'ax', 'ay', 'az', 'timestamps'])
             
             print('Accepted new connection from {}:{}, username: {}'.format(*client_address, user['data'].decode('utf-8')))
 

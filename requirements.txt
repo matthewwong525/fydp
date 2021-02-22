@@ -1,1 +1,1 @@
-pybluez
+scipymatplotlibtqdmnumpypandas>=1.0.4numba>=0.49
