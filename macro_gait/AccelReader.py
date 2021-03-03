@@ -56,39 +56,6 @@ class AccelReader():
         accel_file.close()
         return start, end
 
-    @staticmethod
-    def get_accel_data(path, axis=None, start=-1, end=-1):
-        """
-        Gets the accelerometer data from EDF
-        """
-        accel_axes = [0, 1, 2]
-        accel_file = pyedflib.EdfReader(path)
-        
-        if not (start > -1 and end > -1):
-            start = 0
-            end = accel_file.getNSamples()[accel_axes[0]]
-
-        if axis:
-            accel_axes.remove(axis)
-            data = accel_file.readSignal(axis, start=start, n=(end - start))
-            xz_data = np.sqrt(accel_file.readSignal(accel_axes[0], start=start, n=(end - start)) ** 2 + accel_file.readSignal(accel_axes[1], start=start, n=(end - start)) ** 2)
-        else:
-            all_data = np.array([accel_file.readSignal(ax, start=start, n=(end-start)) for ax in accel_axes])
-            axis_index = np.argmax(np.sum(np.abs(all_data), axis=1))
-            other_axes = np.delete(np.arange(all_data.shape[0]), axis_index)
-            axis = accel_axes[axis_index]
-            data = all_data[axis_index]
-            xz_data = np.sqrt((all_data[other_axes] ** 2).sum(axis=0))
-            
-        freq = accel_file.getSampleFrequency(axis)
-        start_time = accel_file.getStartdatetime() + datetime.timedelta(0, start / freq)
-        end_time = start_time + datetime.timedelta(0, accel_file.getFileDuration(
-            )) - datetime.timedelta(0, accel_file.getFileDuration() - (end - start) / freq)
-        timestamps = np.asarray(pd.date_range(
-            start=start_time, end=end_time, periods=len(data)))
-            
-        accel_file.close()
-        return freq, data, xz_data, timestamps, axis
     
     @staticmethod
     def get_accel_csv_data(path, axis=None, start=-1, end=-1):

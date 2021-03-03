@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 from macro_gait.StepDetection import StepDetection
 from macro_gait.AccelReader import AccelReader
+from macro_gait.SensorFusion import SensorFusion
 
 class WalkingBouts():
     def __init__(self, left_accel_path, right_accel_path, start_time=None, duration_sec=None, bout_num_df=None, legacy_alg=False, left_kwargs={}, right_kwargs={}):
@@ -22,10 +23,10 @@ class WalkingBouts():
             left_kwargs['start'], left_kwargs['end'] = l_start, l_end
             right_kwargs['start'], right_kwargs['end'] = r_start, r_end
 
-        left_stepdetector = StepDetection(accel_path=left_accel_path, **left_kwargs)
-        right_stepdetector = StepDetection(accel_path=right_accel_path, **right_kwargs)
-        self.left_step_df = left_stepdetector.generate_summary_metrics()
-        self.right_step_df = right_stepdetector.generate_summary_metrics()
+        left_stepdetector = SensorFusion(path=left_accel_path, **left_kwargs)
+        right_stepdetector = SensorFusion(path=right_accel_path, **right_kwargs)
+        self.left_step_df = left_stepdetector.export_steps()
+        self.right_step_df = right_stepdetector.export_steps()
         self.left_step_df['step_time'] = pd.to_datetime(self.left_step_df['step_time'])
         self.right_step_df['step_time'] = pd.to_datetime(self.right_step_df['step_time'])
         self.left_step_df['foot'] = 'left'
@@ -36,7 +37,7 @@ class WalkingBouts():
         self.left_steps_failed = left_stepdetector.detect_arr
         self.right_steps_failed = right_stepdetector.detect_arr
         self.freq = left_stepdetector.freq  # TODO: check if frequencies are the same
-        assert left_stepdetector.freq == right_stepdetector.freq
+        # assert left_stepdetector.freq == right_stepdetector.freq
         if legacy_alg:
             self.bout_num_df = WalkingBouts.identify_bouts(left_stepdetector, right_stepdetector) if bout_num_df is None else bout_num_df
         else:
@@ -64,7 +65,7 @@ class WalkingBouts():
         bout_dict = {'start': [], 'end': [], 'number_steps': [], 'start_timestamp': [], 'end_timestamp': []}
         start_step = steps_df.iloc[0]  # start of bout step
         curr_step = steps_df.iloc[0]
-        step_count = 0
+        step_count = 1
         next_steps = None
 
         while curr_step is not None:
@@ -88,7 +89,7 @@ class WalkingBouts():
                     bout_dict['end_timestamp'].append(curr_step['timestamp'] + pd.Timedelta(curr_step['step_length'] / freq, unit='sec'))
 
                 # resets state and creates new bout
-                step_count = 0
+                step_count = 1
                 next_curr_steps = steps_df.loc[steps_df['timestamp'] > curr_step['timestamp']]
                 curr_step = next_curr_steps.iloc[0] if not next_curr_steps.empty else None
                 start_step = curr_step
@@ -106,7 +107,6 @@ class WalkingBouts():
         all_bouts['overlaps'] = (all_bouts['start_timestamp'] < all_bouts['end_timestamp'].shift()) & (all_bouts['start_timestamp'].shift() < all_bouts['end_timestamp'])
         all_bouts['intersect_id'] = (((all_bouts['overlaps'].shift(-1) == True) & (all_bouts['overlaps'] == False)) |
                                       ((all_bouts['overlaps'].shift() == True) & (all_bouts['overlaps'] == False))).cumsum()
-
         for intersect_id, intersect in all_bouts.groupby('intersect_id'):
             # if there are no overlaps i want to iterate each individual bout
             if not intersect['overlaps'].any():
@@ -225,7 +225,7 @@ class WalkingBouts():
         else:
             return fig
 
-    def bout_step_summary(self):
+    def export_steps(self):
         bout_steps = []
         for i, row in self.bout_num_df.iterrows():
             start = row['start_timestamp'] - pd.Timedelta(1, unit='sec')
@@ -240,6 +240,7 @@ class WalkingBouts():
 
         bout_step_summary = pd.concat(bout_steps)
         bout_step_summary.sort_values(by=['gait_bout_num', 'foot', 'step_time'])
+        bout_step_summary.reset_index(drop=True)
 
         return bout_step_summary
 
@@ -303,7 +304,7 @@ class WalkingBouts():
 
         bouts = np.zeros(self.sig_length)
         for i, row in self.bout_num_df.iterrows():
-            bouts[row['start']:row['end']] = 5
+            bouts[int(row['start']):int(row['end'])] = 5
         states_legend = ['stance', 'pushoff', 'swing down', 'swing up', 'heel strike']
 
         fig, axs = plt.subplots(3,1, sharex=True, figsize=(15,8))
@@ -354,7 +355,7 @@ class WalkingBouts():
         else:
             return fig
 
-    def generate_summary_data(self, name='UNKNOWN'):
+    def export_bouts(self, name='UNKNOWN'):
         summary = pd.DataFrame({
             'name': name,
             'gait_bout_num': self.bout_num_df.index,

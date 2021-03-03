@@ -59,7 +59,7 @@ class StepDetection(AccelReader):
             step = StepDetection(accel_path=accel_path, label='get_pushoff_stats',
                                 axis=axis, start=start, end=end, quiet=True, pushoff_df=pd.read_csv('pushoff_OND07_left.csv'))
             pushoff_sig = StepDetection.get_pushoff_sigs(step, quiet=quiet)
-            step_summary = step.generate_summary_metrics()
+            step_summary = step.export_steps()
             toe_offs = step_summary.loc[step_summary['step_state'] == 'success', 'swing_start_time']
             mid_swings = step_summary.loc[step_summary['step_state'] == 'success', 'mid_swing_time']
             heel_strikes = step_summary.loc[step_summary['step_state'] == 'success', 'heel_strike_time']
@@ -172,8 +172,8 @@ class StepDetection(AccelReader):
 
             # mean/std check for pushoff, state = 1
             pushoff_mean = np.mean(self.data[i - self.pushoff_len:i])
-            upper = (self.pushoff_df['avg'] + 2 * self.pushoff_df['std'])
-            lower = (self.pushoff_df['avg'] - 2 * self.pushoff_df['std'])
+            upper = (self.pushoff_df['avg'] + 3 * self.pushoff_df['std'])
+            lower = (self.pushoff_df['avg'] - 3 * self.pushoff_df['std'])
             if not np.any((pushoff_mean < upper) & (pushoff_mean > lower)):
                 detects['pushoff_mean'].append(i - 1)
                 continue
@@ -292,7 +292,7 @@ class StepDetection(AccelReader):
 
         return accel_derivative
 
-    def generate_summary_metrics(self):
+    def export_steps(self):
         assert len(self.detect_arr) == len(self.timestamps)
         failed_step_indices = np.where(self.detect_arr > 0)[0]
         failed_step_timestamps = self.timestamps[failed_step_indices]
@@ -310,8 +310,8 @@ class StepDetection(AccelReader):
 
         pushoff_start = swing_start - int(self.pushoff_time * self.freq)
         gait_cycle_end = heel_strike + int(self.foot_down_time * self.freq)
-        step_lengths = (gait_cycle_end - pushoff_start) / self.freq
-        avg_speed = [np.mean(self.xz_data[i:i + int(lengths * self.freq)]) * 9.81 * lengths for i, lengths in zip(self.step_indices, step_lengths)]
+        step_times = (gait_cycle_end - pushoff_start) / self.freq
+        avg_speed = [np.mean(self.xz_data[i:i + int(lengths * self.freq)]) * 9.81 * lengths for i, lengths in zip(self.step_indices, step_times)]
 
         assert len(self.step_indices) == len(swing_start)
         assert len(self.step_indices) == len(mid_swing)
@@ -327,7 +327,7 @@ class StepDetection(AccelReader):
             'swing_start_accel': self.data[swing_start],
             'mid_swing_accel': self.data[mid_swing],
             'heel_strike_accel': self.data[heel_strike],
-            'step_length': step_lengths,
+            'step_length_sec': step_times,
             'avg_speed': avg_speed
         })
         failed_steps = pd.DataFrame({
@@ -337,6 +337,7 @@ class StepDetection(AccelReader):
         })
         df = pd.concat([successful_steps, failed_steps], sort=True)
         df = df.sort_values(by='step_index')
+        df = df.reset_index(drop=True)
 
         return df
 
@@ -379,7 +380,7 @@ class StepDetection(AccelReader):
             return plt
 
 if __name__ == '__main__':
-    path = '/Users/matthewwong/Documents/coding/fydp/walking2.csv'
+    path = '/Users/matthewwong/Documents/coding/fydp/walking1.csv'
     pushoff_df = '/Users/matthewwong/Documents/coding/fydp/macro_gait/pushoff_OND07_left.csv'
     obj = StepDetection(accel_path=path, pushoff_df=pd.read_csv(pushoff_df), label='hello')
     
