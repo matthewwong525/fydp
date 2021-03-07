@@ -324,6 +324,7 @@ class StepDetection(AccelReader):
             'swing_start_time': self.timestamps[swing_start],
             'mid_swing_time': self.timestamps[mid_swing],
             'heel_strike_time': self.timestamps[heel_strike],
+            'foot_down_time': self.timestamps[heel_strike + int(self.foot_down_time * self.freq)],
             'swing_start_accel': self.data[swing_start],
             'mid_swing_accel': self.data[mid_swing],
             'heel_strike_accel': self.data[heel_strike],

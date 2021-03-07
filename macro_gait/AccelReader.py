@@ -70,7 +70,7 @@ class AccelReader():
         timestamps = timestamps.to_numpy()
         data = df[axis].to_numpy()
         xz_data = np.sqrt((df[other_axes] ** 2).sum(axis=1))
-        return freq, data, xz_data, timestamps, axis
+        return freq, data, xz_data, timestamps, axis[-1]
 
     def flip_signal(self):
         """

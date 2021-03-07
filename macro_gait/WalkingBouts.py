@@ -25,6 +25,8 @@ class WalkingBouts():
 
         left_stepdetector = SensorFusion(path=left_accel_path, **left_kwargs)
         right_stepdetector = SensorFusion(path=right_accel_path, **right_kwargs)
+        self.left_stepdetector = left_stepdetector
+        self.right_stepdetector = right_stepdetector
         self.left_step_df = left_stepdetector.export_steps()
         self.right_step_df = right_stepdetector.export_steps()
         self.left_step_df['step_time'] = pd.to_datetime(self.left_step_df['step_time'])
