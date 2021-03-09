@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python3
 import socket
@@ -6,9 +5,11 @@ import errno
 import sys
 import pickle
 
+from HwInterface import HwInterface
+
 HEADER_LENGTH = 10
 
-IP = '192.168.0.106'
+IP = '192.168.0.144'
 PORT = 1234
 my_username = socket.gethostname()
 
@@ -31,12 +32,17 @@ client_socket.send(username_header + username)
 action = ''
 print('Waiting for server to start...')
 
+# Initialize HwInteface
+HwApi = HwInterface()
+
+
 while True:
     # If message is not empty - send it
     if action == 's':
         # Wait for user to input a message
         # TODO: change this to read sensor data
-        message = input('Send Sensor Data Here:')
+        # message = input('Send Sensor Data Here:')
+        message = HwApi.readSensors()
         data = {'msg': message }
         
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
