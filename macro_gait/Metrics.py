@@ -190,7 +190,7 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
         f.write(spatial.to_markdown())
         f.write('\n### Pressure Stats\n')
         f.write(pressure.to_markdown())
-        
+                
         
         
             

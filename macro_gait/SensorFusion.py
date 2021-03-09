@@ -64,7 +64,7 @@ class SensorFusion(StepDetection):
         force_df = self.norm_force_data.copy()
         for col in force_df:
             force_df[col] = ~self.hyst(force_df[col].to_numpy(), 0.5, 0.65)
-        newton_force_df = self.force_data
+        newton_force_df = self.force_data.copy()
         newton_force_df['GRF'] = force_df.sum(axis=1)
         newton_force_df['timestamps'] = self.timestamps
         force_df['timestamps'] = self.timestamps
@@ -199,7 +199,7 @@ class SensorFusion(StepDetection):
     
     def plot_force_mean(self, show_plt=False):
         steps = self.export_steps()
-        
+        print(self.force_data)
         GRF = self.force_data.sum(axis=1).to_numpy()
         step_len_ind = int((steps['step_len_sec'] * self.freq).mean()) + 2*int((steps['step_len_sec'] * self.freq).std())
         step_sig_list = []
@@ -261,13 +261,11 @@ class SensorFusion(StepDetection):
         plt.clf()
         plt.title('Center of Pressure in Step')
         max_x, max_y = np.max(list(self.cop_locs.values()), axis=0)
-        print(max_x, max_y)
         
         #plt.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], scale_units='xy', angles='xy', scale=1)
         plt.ylim([0, max_y + 5])
         plt.xlim([-max_x-1, 0]) if mirror else plt.xlim([0, max_x + 1])
         for k,v in self.cop_locs.items():
-            print(k,v)
             v = (-v[0], v[1]) if mirror else v 
             plt.text(v[0], v[1], k, ha="center", va="center",
              bbox = dict(boxstyle=f"circle,pad={1}", fc="lightgrey", alpha=0.3))
