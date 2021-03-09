@@ -98,6 +98,7 @@ class SensorFusion(StepDetection):
             
             # temporal / spatial stats
             steps.loc[i, 'step_time'] = self.timestamps[po_ind]
+            steps.loc[i, 'step_len_sec'] = (fd_ind - po_ind) / self.freq
             steps.loc[i, 'step_index'] = po_ind
             steps.loc[i, 'step_state'] = 'success'
             steps.loc[i, 'swing_start_time'] = self.timestamps[ss_ind]
@@ -134,8 +135,6 @@ class SensorFusion(StepDetection):
                     
         return steps
     
-        
-    
     def plot(self):
         dp_range = np.arange(self.start_dp, self.end_dp)
         ax1 = plt.subplot(311)
@@ -150,10 +149,140 @@ class SensorFusion(StepDetection):
         plt.plot(dp_range, self.hyst(self.norm_force_data['p1'].to_numpy(), 0.5, 0.65))
         plt.show()
     
+    def plot_accel_mean(self, show_plt=False):
+        steps = self.export_steps()
+        
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean())
+        step_sig_list = []
+        
+        mean_po = (steps['swing_start_time'] - steps['step_time']).dt.total_seconds().mean()
+        mean_sd = (steps['mid_swing_time'] - steps['swing_start_time']).dt.total_seconds().mean()
+        mean_su = (steps['heel_strike_time'] - steps['mid_swing_time']).dt.total_seconds().mean()
+        mean_fd = (steps['foot_down_time'] - steps['heel_strike_time']).dt.total_seconds().mean()
+        for i, step in steps.iterrows():
+            start_ind = step['step_index']
+            end_ind = start_ind + step_len_ind
+            step_sig = self.data[start_ind:end_ind]
+            step_sig_list.append(step_sig)
+
+        mean_sig = np.mean(step_sig_list, axis=0)
+        std_sig = np.std(step_sig_list, axis=0)
+        max_sig = np.max(step_sig_list, axis=0)
+        min_sig = np.min(step_sig_list, axis=0)
+        
+        time_range = np.linspace(0,steps['step_len_sec'].mean(),len(mean_sig))
+        alpha = 0.4
+        
+        fig, ax = plt.subplots(2,1, sharex=True, gridspec_kw={'height_ratios': [2, 1]})
+        fig.suptitle('Mean Acceleration in Step')
+        ax[0].plot(time_range, mean_sig, label='mean')
+        ax[0].plot(time_range, mean_sig+std_sig, 'r--', label='std', alpha=alpha)
+        ax[0].plot(time_range, mean_sig-std_sig, 'r--', alpha=alpha)
+        ax[0].plot(time_range, max_sig, 'g:', label='max/min', alpha=alpha)
+        ax[0].plot(time_range, min_sig, 'g:', alpha=alpha)
+        ax[0].set_ylabel('acceleration (m/s^2)')
+        ax[0].legend()
+        
+        ax[1].barh([''], mean_po, label='pushoff', height=0.5)
+        ax[1].barh([''], mean_sd, left=mean_po, label='swing down', height=0.5)
+        ax[1].barh([''], mean_su, left=(mean_sd+mean_po), label='swing up', height=0.5)
+        ax[1].barh([''], mean_fd, left=(mean_po + mean_sd + mean_su),label='foot down', height=0.5)
+        ax[1].set_xlabel('time (s)')
+        ax[1].set_ylabel('step phases')
+        ax[1].legend()
+        ax[1].set_yticks('hello')
+    
+        
+        if show_plt:
+            fig.show()
+        return fig
+    
+    def plot_force_mean(self, show_plt=False):
+        steps = self.export_steps()
+        
+        GRF = self.force_data.sum(axis=1).to_numpy()
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean()) + 2*int((steps['step_len_sec'] * self.freq).std())
+        step_sig_list = []
+        
+        for i, step in steps.iterrows():
+            start_ind = step['step_index']
+            end_ind = start_ind + step_len_ind
+            step_sig = GRF[start_ind:end_ind]
+            step_sig_list.append(step_sig)
+
+        mean_sig = np.mean(step_sig_list, axis=0)
+        std_sig = np.std(step_sig_list, axis=0)
+        max_sig = np.max(step_sig_list, axis=0)
+        min_sig = np.min(step_sig_list, axis=0)
+        
+        time_range = np.linspace(0,steps['step_len_sec'].mean(),len(mean_sig))
+        alpha = 0.4
+        plt.clf()
+        plt.plot(time_range, mean_sig, label='mean')
+        plt.plot(time_range, mean_sig+std_sig, 'r--', label='std', alpha=alpha)
+        plt.plot(time_range, mean_sig-std_sig, 'r--', alpha=alpha)
+        plt.plot(time_range, max_sig, 'g:', label='max/min', alpha=alpha)
+        plt.plot(time_range, min_sig, 'g:', alpha=alpha)
+        plt.title('Mean Force in Step')
+        plt.xlabel('time (s)')
+        plt.ylabel('force (N)')
+        plt.legend()
+        
+        if show_plt:
+            plt.show()
+        return plt
+    
+    def plot_cop_mean(self, show_plt=False, mirror=False):
+        steps = self.export_steps()
+        
+        COP_x = self.COP_data['COP_ML']
+        COP_y = self.COP_data['COP_AP']
+        GRF = self.force_data.sum(axis=1).to_numpy()
+        
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean()) + 2*int((steps['step_len_sec'] * self.freq).std())
+        x_sig_list = []
+        y_sig_list = []
+        step_sig_list = []
+        
+        for i, step in steps.iterrows():
+            start_ind = step['step_index']
+            end_ind = start_ind + step_len_ind
+            step_sig = GRF[start_ind:end_ind]
+            
+            x_sig_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_ML'])
+            y_sig_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_AP'])
+            step_sig_list.append(step_sig)
+
+        # TODO: update to real COP
+        x = -np.mean(x_sig_list, axis=0) if mirror else np.mean(x_sig_list, axis=0)
+        y = np.mean(y_sig_list, axis=0)
+        
+        #fig, ax = plt.subplots()
+        plt.clf()
+        plt.title('Center of Pressure in Step')
+        max_x, max_y = np.max(list(self.cop_locs.values()), axis=0)
+        print(max_x, max_y)
+        
+        #plt.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], scale_units='xy', angles='xy', scale=1)
+        plt.ylim([0, max_y + 5])
+        plt.xlim([-max_x-1, 0]) if mirror else plt.xlim([0, max_x + 1])
+        for k,v in self.cop_locs.items():
+            print(k,v)
+            v = (-v[0], v[1]) if mirror else v 
+            plt.text(v[0], v[1], k, ha="center", va="center",
+             bbox = dict(boxstyle=f"circle,pad={1}", fc="lightgrey", alpha=0.3))
+        plt.xlabel('x (cm)')
+        plt.ylabel('y (cm)')
+        
+        if show_plt:
+            plt.show()
+        return plt
+        
+    
 
 if __name__ == "__main__":
     path = '/Users/matthewwong/Documents/coding/fydp/walking2.csv'
     pushoff_df = '/Users/matthewwong/Documents/coding/fydp/macro_gait/pushoff_OND07_left.csv'
     f = SensorFusion(path, pushoff_df=pd.read_csv(pushoff_df))
-    steps = f.export_steps()
+    f.plot_cop_mean(show_plt=True, mirror=True)
     

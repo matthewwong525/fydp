@@ -7,8 +7,13 @@ Created on Tue Mar  2 21:43:53 2021
 """
 
 from macro_gait.WalkingBouts import WalkingBouts
+from pathlib import Path
+import os
 import pandas as pd
 import numpy as np
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+
 
 def get_general_stats(steps):
     l_steps, r_steps = steps.loc[(steps['foot'] == 'left') & (steps['step_state'] == 'success')], steps.loc[(steps['foot'] == 'right') & (steps['step_state'] == 'success')]
@@ -68,16 +73,16 @@ def get_temporal_stats(steps):
     r_total = (r_steps['foot_down_time'] - r_steps['step_time']).dt.total_seconds() + r_footdown
     r_stances = r_total - r_swings
     
-    l_doublesupp = l_total - l_swings - r_swings
-    r_doublesupp = r_total - l_swings - r_swings    
+    l_doublesupp = 1 - l_swings/l_total - r_swings/l_total
+    r_doublesupp = 1 - l_swings/r_total - r_swings/r_total 
+    
     # MEAN STATS
-    # TODO: Add that stats foot-flat stats
     stats = [(l_stances/(l_swings+l_stances)), (r_stances/(r_swings+r_stances)),
             (l_swings/(l_swings+l_stances)), (r_swings/(r_swings+r_stances)),
             (l_loading/l_stances), (r_loading/r_stances),
             (l_pushing/l_stances), (r_pushing/r_stances),
             (l_footdown/l_stances), (r_footdown/r_stances),
-            l_doublesupp, r_doublesupp]
+            l_doublesupp/l_total, r_doublesupp/r_total]
 
     temporal_df = pd.DataFrame(
         {'mean': [np.nanmean(x) for x in stats],
@@ -124,7 +129,7 @@ def get_asymmetry_stats(df):
     
     return pd.concat(concat_list).sort_index()
         
-def get_pressure_stats(steps, bout_obj):
+def get_pressure_stats(steps):
     l_steps, r_steps = steps.loc[(steps['foot'] == 'left') & (steps['step_state'] == 'success')], steps.loc[(steps['foot'] == 'right') & (steps['step_state'] == 'success')]    
             
     stats = [l_steps['GRF'], r_steps['GRF'], l_steps['heeltime'], r_steps['heeltime'],
@@ -146,6 +151,47 @@ def get_pressure_stats(steps, bout_obj):
             ['L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R']])
     pressure_df = get_asymmetry_stats(pressure_df)
     return pressure_df
+
+def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
+    temporal = get_temporal_stats(steps)
+    general = get_general_stats(steps)
+    spatial = get_spatial_stats(steps)
+    pressure = get_pressure_stats(steps)
+    
+    # Store figures
+    Path(path).mkdir(parents=True, exist_ok=True)
+    bouts_obj.left_stepdetector.plot_accel_mean().savefig(os.path.join(path, 'left_acceL_step.png'))
+    bouts_obj.right_stepdetector.plot_accel_mean().savefig(os.path.join(path, 'right_acceL_step.png'))
+    
+    bouts_obj.left_stepdetector.plot_force_mean().savefig(os.path.join(path, 'left_force_step.png'))
+    bouts_obj.right_stepdetector.plot_force_mean().savefig(os.path.join(path, 'right_force_step.png'))
+    
+    bouts_obj.left_stepdetector.plot_cop_mean().savefig(os.path.join(path, 'left_cop_step.png'))
+    bouts_obj.right_stepdetector.plot_cop_mean(mirror=True).savefig(os.path.join(path, 'right_cop_step.png'))
+    
+    
+    # Write Markdown
+    with open(os.path.join(path, filename), 'w') as f:
+        f.write('## Gait Analysis Report')
+        
+        f.write('\n### Graphs Comparing Feet')
+        f.write('\n| Left Foot | Right Foot |')
+        f.write('\n| --- | --- |')
+        f.write('\n|![alt text](./left_accel_step.png) | ![alt text](./right_accel_step.png)|')
+        f.write('\n|![alt text](./left_force_step.png) | ![alt text](./right_force_step.png)|')
+        f.write('\n|![alt text](./left_cop_step.png) | ![alt text](./right_cop_step.png)| \n')
+        
+        f.write('## Detailed Statistics')
+        f.write('\n### General Stats\n')
+        f.write(general.T.to_markdown())
+        f.write('\n### Temporal Stats\n')
+        f.write(temporal.to_markdown())
+        f.write('\n### Spatial Stats\n')
+        f.write(spatial.to_markdown())
+        f.write('\n### Pressure Stats\n')
+        f.write(pressure.to_markdown())
+        
+        
         
             
                 
@@ -157,7 +203,7 @@ if __name__ == '__main__':
     bouts_obj = WalkingBouts(path1, path2, left_kwargs={'pushoff_df': pushoff_df}, right_kwargs={'pushoff_df': pushoff_df})
     steps = bouts_obj.export_steps()
     bouts = bouts_obj.export_bouts()
-    pp = get_temporal_stats(steps)
-    gg = get_general_stats(steps)
-    oo = get_spatial_stats(steps)
-    ppp = get_pressure_stats(steps, bouts_obj)
+    temporal = get_temporal_stats(steps)
+    markdown_output(steps, bouts_obj)
+    
+    
