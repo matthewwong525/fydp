@@ -65,10 +65,14 @@ class WalkingBouts():
 
         # assumes Hz are the same
         bout_dict = {'start': [], 'end': [], 'number_steps': [], 'start_timestamp': [], 'end_timestamp': []}
+        if not steps:
+            return pd.DataFrame(bout_dict)
+        
         start_step = steps_df.iloc[0]  # start of bout step
         curr_step = steps_df.iloc[0]
         step_count = 1
         next_steps = None
+        
 
         while curr_step is not None:
             # Assumes steps are not empty and finds the next step after the current step

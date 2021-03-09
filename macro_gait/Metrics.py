@@ -196,10 +196,10 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
 
         
 if __name__ == '__main__':
-    path1 = '/Users/matthewwong/Documents/coding/fydp/walking1.csv'
-    path2 = '/Users/matthewwong/Documents/coding/fydp/walking2.csv'
+    path1 = '/Users/matthewwong/Documents/coding/fydp/raspberrypi-1_data.csv'
+    path2 = '/Users/matthewwong/Documents/coding/fydp/raspberrypi-2_data.csv'
     pushoff_df = pd.read_csv('/Users/matthewwong/Documents/coding/fydp/macro_gait/pushoff_OND07_left.csv')
-    bouts_obj = WalkingBouts(path1, path2, left_kwargs={'pushoff_df': pushoff_df}, right_kwargs={'pushoff_df': pushoff_df})
+    bouts_obj = WalkingBouts(path1, path2, left_kwargs={'pushoff_df': pushoff_df, 'axis': 'ax'}, right_kwargs={'pushoff_df': pushoff_df, 'axis': 'ax'})
     steps = bouts_obj.export_steps()
     bouts = bouts_obj.export_bouts()
     temporal = get_temporal_stats(steps)

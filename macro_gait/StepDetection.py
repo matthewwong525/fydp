@@ -381,7 +381,7 @@ class StepDetection(AccelReader):
             return plt
 
 if __name__ == '__main__':
-    path = '/Users/matthewwong/Documents/coding/fydp/walking1.csv'
+    path = '/Users/matthewwong/Documents/coding/fydp/raspberrypi-1_data.csv'
     pushoff_df = '/Users/matthewwong/Documents/coding/fydp/macro_gait/pushoff_OND07_left.csv'
     obj = StepDetection(accel_path=path, pushoff_df=pd.read_csv(pushoff_df), label='hello')
     

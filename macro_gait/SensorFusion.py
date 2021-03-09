@@ -20,12 +20,18 @@ class SensorFusion(StepDetection):
         self.COP_data = SensorFusion.get_cop(path, self.cop_locs)
         # instead of max, use their weight
         self.norm_force_data = (self.force_data - self.force_data.min(axis=0)) / (self.force_data.max(axis=0) - self.force_data.min(axis=0)).copy() 
+        self.is_pressed = self.norm_force_data.copy()
+        for col in self.is_pressed:
+            self.is_pressed[col] = self.hyst(self.is_pressed[col].to_numpy(), 0.2, 0.4)
 
     @staticmethod
     def get_force_data(path):
         df = pd.read_csv(path)
         pressure_axes = ['p1','p2','p3','p4','p5','p6']
         data = df[pressure_axes]
+        
+        # polynomial regression to Newtons!
+        data = 0.0002 * data**2 + 0.1144 * data + 17.383 - 20
         return data
     
     @staticmethod
@@ -61,34 +67,37 @@ class SensorFusion(StepDetection):
     
     def export_steps(self):
         steps = super().export_steps()
-        force_df = self.norm_force_data.copy()
-        for col in force_df:
-            force_df[col] = ~self.hyst(force_df[col].to_numpy(), 0.5, 0.65)
+        force_df = self.is_pressed.copy()
         newton_force_df = self.force_data.copy()
         newton_force_df['GRF'] = force_df.sum(axis=1)
         newton_force_df['timestamps'] = self.timestamps
         force_df['timestamps'] = self.timestamps
         for i, step in steps.iterrows():
-            ms_ind = self.mid_swing_peak_detect(step['step_index'] + self.pushoff_len)
+            ms_ind = self.mid_swing_peak_detect(int(step['step_index'] + self.pushoff_len))
+            
+            if not ms_ind:
+                steps.loc[i, 'step_state'] = 'unable to find midswing'
+                continue
                 
             # basically checks if foot is off the ground up until midswing
             # TODO: we want to check more of the force sensors!
             df = force_df.loc[(force_df['timestamps'] > step['step_time'] + pd.Timedelta(self.pushoff_time, unit='s')) & (force_df['timestamps'] < self.timestamps[ms_ind])]
-            if not df['p1'].all():
+            heel_arr = df['p1'] | df['p2']
+            if heel_arr.any():
                 steps.loc[i, 'step_state'] = 'heel_on_ground_during_swing'
                 continue
-            
+                        
             # TODO: base it on force sensor
-            po_list = np.where((force_df['p1'] == 0) & (force_df['p1'].shift(-1) == 1))[0]
-            po_ind = min(po_list, key=lambda x:abs(x-step['step_index']))
+            po_list = np.where(((force_df['p1'] | force_df['p2']) == 0) & ((force_df['p1'] | force_df['p2']).shift(-1) == 1))[0]
+            po_ind = int(min(po_list, key=lambda x:abs(x-step['step_index'])))
                          
             # checks if correction of pushoff is too far
             if abs(po_ind - step['step_index']) > 30:
                 steps.loc[i, 'step_state'] = 'pushoff_too_far_from_pressure'
                 continue
             
-            ss_ind = step['step_index'] + self.pushoff_len
-            hs_ind = np.where(self.heel_strike_detect(ms_ind) < self.heel_strike_threshold)[0][0] + ms_ind
+            ss_ind = int(step['step_index'] + self.pushoff_len)
+            hs_ind = int(np.where(self.heel_strike_detect(ms_ind) < self.heel_strike_threshold)[0][0] + ms_ind)
             fd_ind = int(hs_ind + self.foot_down_time * self.freq)
             
             step_length_sec =  (fd_ind - ss_ind) / self.freq
@@ -110,6 +119,7 @@ class SensorFusion(StepDetection):
             steps.loc[i, 'heel_strike_accel'] = self.data[hs_ind]
             steps.loc[i, 'step_length_sec'] = step_length_sec
             steps.loc[i, 'max_angular_vel'] = self.IMU_data.loc[po_ind:fd_ind, ['gx', 'gy', 'gz']].abs().values.max()
+            steps.loc[i, 'max_angular_vel'] = 1
             steps.loc[i, 'avg_speed'] = avg_speed
             steps.loc[i, 'swing_speed'] = swing_speed
             
@@ -146,7 +156,7 @@ class SensorFusion(StepDetection):
         plt.plot(dp_range, self.force_data['p1'])
         ax3 = plt.subplot(313, sharex=ax1)
         ax3.set_title('Force Data')
-        plt.plot(dp_range, self.hyst(self.norm_force_data['p1'].to_numpy(), 0.5, 0.65))
+        plt.plot(dp_range, (self.is_pressed['p1'] | self.is_pressed['p2']))
         plt.show()
     
     def plot_accel_mean(self, show_plt=False):
@@ -160,7 +170,7 @@ class SensorFusion(StepDetection):
         mean_su = (steps['heel_strike_time'] - steps['mid_swing_time']).dt.total_seconds().mean()
         mean_fd = (steps['foot_down_time'] - steps['heel_strike_time']).dt.total_seconds().mean()
         for i, step in steps.iterrows():
-            start_ind = step['step_index']
+            start_ind = int(step['step_index'])
             end_ind = start_ind + step_len_ind
             step_sig = self.data[start_ind:end_ind]
             step_sig_list.append(step_sig)
@@ -204,7 +214,7 @@ class SensorFusion(StepDetection):
         step_sig_list = []
         
         for i, step in steps.iterrows():
-            start_ind = step['step_index']
+            start_ind = int(step['step_index'])
             end_ind = start_ind + step_len_ind
             step_sig = GRF[start_ind:end_ind]
             step_sig_list.append(step_sig)
@@ -233,24 +243,15 @@ class SensorFusion(StepDetection):
     
     def plot_cop_mean(self, show_plt=False, mirror=False):
         steps = self.export_steps()
-        
-        COP_x = self.COP_data['COP_ML']
-        COP_y = self.COP_data['COP_AP']
-        GRF = self.force_data.sum(axis=1).to_numpy()
-        
         step_len_ind = int((steps['step_len_sec'] * self.freq).mean())
         x_sig_list = []
         y_sig_list = []
-        step_sig_list = []
         
         for i, step in steps.iterrows():
             start_ind = step['step_index']
-            end_ind = start_ind + step_len_ind
-            step_sig = GRF[start_ind:end_ind]
-            
+            end_ind = start_ind + step_len_ind            
             x_sig_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_ML'])
             y_sig_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_AP'])
-            step_sig_list.append(step_sig)
 
         # TODO: update to real COP
         x = -np.mean(x_sig_list, axis=0) if mirror else np.mean(x_sig_list, axis=0)
@@ -260,10 +261,10 @@ class SensorFusion(StepDetection):
         plt.clf()
         plt.title('Center of Pressure in Step')
         max_x, max_y = np.max(list(self.cop_locs.values()), axis=0)
-        
-        #plt.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], scale_units='xy', angles='xy', scale=1)
+
         plt.ylim([0, max_y + 5])
         plt.xlim([-max_x-1, 0]) if mirror else plt.xlim([0, max_x + 1])
+        plt.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], scale_units='xy', angles='xy', scale=1)
         for k,v in self.cop_locs.items():
             v = (-v[0], v[1]) if mirror else v 
             plt.text(v[0], v[1], k, ha="center", va="center",
@@ -285,7 +286,7 @@ class SensorFusion(StepDetection):
         accel_list = []
         
         for i, step in steps.iterrows():
-            start_ind = step['step_index']
+            start_ind = int(step['step_index'])
             end_ind = start_ind + step_len_ind
             cop_x_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_ML'])
             cop_y_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_AP'])
@@ -303,8 +304,9 @@ class SensorFusion(StepDetection):
     
 
 if __name__ == "__main__":
-    path = '/Users/matthewwong/Documents/coding/fydp/walking2.csv'
+    path = '/Users/matthewwong/Documents/coding/fydp/raspberrypi-1_data.csv'
     pushoff_df = '/Users/matthewwong/Documents/coding/fydp/macro_gait/pushoff_OND07_left.csv'
     f = SensorFusion(path, pushoff_df=pd.read_csv(pushoff_df))
-    f.plot_cop_mean(show_plt=True, mirror=True)
+    steps = f.export_steps()
+    f.plot_cop_mean(show_plt=True, mirror=False)
     
