@@ -199,9 +199,8 @@ class SensorFusion(StepDetection):
     
     def plot_force_mean(self, show_plt=False):
         steps = self.export_steps()
-        print(self.force_data)
         GRF = self.force_data.sum(axis=1).to_numpy()
-        step_len_ind = int((steps['step_len_sec'] * self.freq).mean()) + 2*int((steps['step_len_sec'] * self.freq).std())
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean())
         step_sig_list = []
         
         for i, step in steps.iterrows():
@@ -239,7 +238,7 @@ class SensorFusion(StepDetection):
         COP_y = self.COP_data['COP_AP']
         GRF = self.force_data.sum(axis=1).to_numpy()
         
-        step_len_ind = int((steps['step_len_sec'] * self.freq).mean()) + 2*int((steps['step_len_sec'] * self.freq).std())
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean())
         x_sig_list = []
         y_sig_list = []
         step_sig_list = []
@@ -275,6 +274,31 @@ class SensorFusion(StepDetection):
         if show_plt:
             plt.show()
         return plt
+    
+    def get_mean_sigs(self):
+        steps = self.export_steps()
+        GRF = self.force_data.sum(axis=1).to_numpy()
+        step_len_ind = int((steps['step_len_sec'] * self.freq).mean())
+        cop_x_list = []
+        cop_y_list = []
+        force_list = []
+        accel_list = []
+        
+        for i, step in steps.iterrows():
+            start_ind = step['step_index']
+            end_ind = start_ind + step_len_ind
+            cop_x_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_ML'])
+            cop_y_list.append(self.COP_data.loc[start_ind:end_ind, 'COP_AP'])
+            force_list.append(GRF[start_ind:end_ind])
+            accel_list.append(self.data[start_ind:end_ind])
+            
+        cop_list = np.sqrt(np.mean(cop_x_list, axis=0)**2 + np.mean(cop_x_list,axis=0)**2)
+        
+        return cop_list, np.mean(force_list, axis=0), np.mean(accel_list, axis=0)
+        
+        
+        
+        
         
     
 

@@ -11,8 +11,6 @@ from pathlib import Path
 import os
 import pandas as pd
 import numpy as np
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 
 
 def get_general_stats(steps):
@@ -169,6 +167,11 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
     bouts_obj.left_stepdetector.plot_cop_mean().savefig(os.path.join(path, 'left_cop_step.png'))
     bouts_obj.right_stepdetector.plot_cop_mean(mirror=True).savefig(os.path.join(path, 'right_cop_step.png'))
     
+    l_mean_sig = bouts_obj.left_stepdetector.get_mean_sigs()
+    r_mean_sig = bouts_obj.right_stepdetector.get_mean_sigs()
+    
+    cop_asym, force_asym, accel_asym =  [np.corrcoef(l[:min(len(l), len(r))], r[:min(len(l), len(r))])[0,1] for l, r in zip(l_mean_sig, r_mean_sig)]
+
     
     # Write Markdown
     with open(os.path.join(path, filename), 'w') as f:
@@ -190,11 +193,7 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
         f.write(spatial.to_markdown())
         f.write('\n### Pressure Stats\n')
         f.write(pressure.to_markdown())
-                
-        
-        
-            
-                
+
         
 if __name__ == '__main__':
     path1 = '/Users/matthewwong/Documents/coding/fydp/walking1.csv'
