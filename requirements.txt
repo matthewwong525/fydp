@@ -1,1 +1,10 @@
-scipymatplotlibtqdmnumpypandas>=1.0.4numba>=0.49
+scipy
+matplotlib
+tqdm
+numpy
+pandas>=1.0.4
+pyEDFlib
+numba>=0.49
+adafruit-gpio
+adafruit-mcp3008
+adafruit-bno055
