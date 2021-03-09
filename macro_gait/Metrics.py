@@ -5,12 +5,16 @@ Created on Tue Mar  2 21:43:53 2021
 
 @author: matthewwong
 """
-
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from macro_gait.WalkingBouts import WalkingBouts
 from pathlib import Path
 import os
 import pandas as pd
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
 
 
 def get_general_stats(steps):
@@ -150,6 +154,32 @@ def get_pressure_stats(steps):
     pressure_df = get_asymmetry_stats(pressure_df)
     return pressure_df
 
+def plot_symmetry(sym_val, title):
+    def colorFader(c1,c2,mix=0): #fade (linear interpolate) from color c1 (at mix=0) to c2 (mix=1)
+        c1=np.array(mpl.colors.to_rgb(c1))
+        c2=np.array(mpl.colors.to_rgb(c2))
+        return mpl.colors.to_hex((1-mix)*c1 + mix*c2)
+    # cmap = mpl.colours.LinearSegmentedColormap.from_list("", ["darkblue", "blue", "violet", "yellow", "orange", "red"])
+    # print(cmap)
+    c1='red'
+    c2='yellow'
+    c3='green'
+    n=1000
+
+    fig, ax = plt.subplots(figsize=(10, 2))
+    ax.set_yticklabels([])
+    # ax.set_xticklabels()
+    # fig.tight_layout()
+    for x in np.linspace(0, 100, n):
+        if x < (100)/2:
+            ax.axvline(x, color=colorFader(c1,c2,2*x/100), linewidth=4) 
+        else:
+            ax.axvline(x, color=colorFader(c2,c3,(2*x/100)-1), linewidth=4) 
+    plt.title(title)
+    ax.set_xlabel('Percentage')
+    plt.plot(sym_val*100, 0.5, 'o', markersize=20, color='black')
+    return plt 
+
 def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
     temporal = get_temporal_stats(steps)
     general = get_general_stats(steps)
@@ -171,12 +201,17 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
     r_mean_sig = bouts_obj.right_stepdetector.get_mean_sigs()
     
     cop_asym, force_asym, accel_asym =  [np.corrcoef(l[:min(len(l), len(r))], r[:min(len(l), len(r))])[0,1] for l, r in zip(l_mean_sig, r_mean_sig)]
-
+    plot_symmetry(cop_asym, 'Center of Pressure Assymetry Score').savefig(os.path.join(path, 'cop_asym.png'))
+    plot_symmetry(force_asym, 'Load Assymetry Score').savefig(os.path.join(path, 'force_asym.png'))
+    plot_symmetry(accel_asym, 'Spatial Assymetry Score').savefig(os.path.join(path, 'accel_asym.png'))
     
     # Write Markdown
     with open(os.path.join(path, filename), 'w') as f:
         f.write('## Gait Analysis Report')
-        
+        f.write('\n### Symmetry Scores')
+        f.write('\n![alt text](./cop_asym.png)')
+        f.write('\n![alt text](./force_asym.png)')
+        f.write('\n![alt text](./accel_asym.png)')
         f.write('\n### Graphs Comparing Feet')
         f.write('\n| Left Foot | Right Foot |')
         f.write('\n| --- | --- |')
