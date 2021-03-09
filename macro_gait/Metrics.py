@@ -200,11 +200,11 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
     l_mean_sig = bouts_obj.left_stepdetector.get_mean_sigs()
     r_mean_sig = bouts_obj.right_stepdetector.get_mean_sigs()
     
-    cop_asym, force_asym, accel_asym =  [np.corrcoef(l[:min(len(l), len(r))], r[:min(len(l), len(r))])[0,1] for l, r in zip(l_mean_sig, r_mean_sig)]
-    plot_symmetry(cop_asym, 'Center of Pressure Assymetry Score').savefig(os.path.join(path, 'cop_asym.png'))
+    cop_asym, force_asym, accel_asym =  [np.abs(np.corrcoef(l[:min(len(l), len(r))], r[:min(len(l), len(r))])[0,1]) for l, r in zip(l_mean_sig, r_mean_sig)]
+    plot_symmetry(accel_asym, 'Spatial/Temporal Assymetry Score').savefig(os.path.join(path, 'accel_asym.png'))
     plot_symmetry(force_asym, 'Load Assymetry Score').savefig(os.path.join(path, 'force_asym.png'))
-    plot_symmetry(accel_asym, 'Spatial Assymetry Score').savefig(os.path.join(path, 'accel_asym.png'))
-    
+    plot_symmetry(cop_asym, 'Center of Pressure Assymetry Score').savefig(os.path.join(path, 'cop_asym.png'))
+
     # Write Markdown
     with open(os.path.join(path, filename), 'w') as f:
         f.write('## Gait Analysis Report')
@@ -221,7 +221,7 @@ def markdown_output(steps, bouts_obj, path='../output', filename='output.md'):
         
         f.write('## Detailed Statistics')
         f.write('\n### General Stats\n')
-        f.write(general.T.to_markdown())
+        f.write(general.to_markdown())
         f.write('\n### Temporal Stats\n')
         f.write(temporal.to_markdown())
         f.write('\n### Spatial Stats\n')
